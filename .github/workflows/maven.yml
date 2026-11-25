@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       # Получаем исходный код репозитория.
       - name: Checkout
@@ -20,18 +21,43 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
 
-      # Запускаем тот же build,
-      # который студент запускал локально.
+      # Диагностика окружения: версии Java и Maven попадут в лог запуска.
+      - name: Show Java and Maven versions
+        run: |
+          java -version
+          mvn -version
+          pwd
+          ls -la
+
+      # Запускаем тот же build, который студент запускал локально.
+      # Повторы загрузки зависимостей защищают от разовых сбоев Maven Central.
       - name: Build and test
-        run: mvn -B clean verify
+        env:
+          MAVEN_OPTS: -Dfile.encoding=UTF-8
+        run: |
+          set -o pipefail
+          mvn -B -e clean verify \
+            -Dmaven.wagon.http.retryHandler.count=5 \
+            -Daether.connector.http.retryHandler.count=5 2>&1 | tee maven.log
 
-      # Даже при failed test пытаемся сохранить
-      # отчёты как artifact.
+      # Если сборка упала, выводим последние строки лога как аннотации:
+      # они видны на странице запуска даже без скачивания всего лога.
+      - name: Show Maven errors
+        if: failure()
+        run: |
+          if [ -f maven.log ]; then
+            echo "::error::Maven build failed. Last lines of maven.log:"
+            tail -40 maven.log | while IFS= read -r line; do echo "::error::$line"; done
+          else
+            echo "::error::maven.log not found - Maven did not start"
+          fi
+
+      # Даже при failed test пытаемся сохранить отчёты как artifact.
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
           path: target/surefire-reports/
+          if-no-files-found: ignore
