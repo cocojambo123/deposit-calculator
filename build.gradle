@@ -1,0 +1,63 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'by.student'
+version = '1.0.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    // На машине нет JDK 17 (доступен JDK 21 из IntelliJ IDEA и JDK 25),
+    // поэтому вместо toolchain 17 компилируем с release 17:
+    // байткод всё равно остаётся версии Java 17.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}
+
+dependencies {
+    testImplementation(
+        'org.junit.jupiter:junit-jupiter:5.14.4'
+    )
+    // Gradle 8.14 приносит собственный junit-platform-launcher версии 1.11.x,
+    // несовместимый с платформой 1.14.4 из junit-jupiter. Явная зависимость
+    // выравнивает версии launcher и engine.
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.4'
+}
+
+application {
+    mainClass = 'by.student.deposit.Main'
+
+    // Как и в Ant-сценарии, явно задаём кодировку вывода приложения:
+    // иначе на Windows кириллица в консоли превращается в «????».
+    applicationDefaultJvmArgs = [
+        '-Dstdout.encoding=UTF-8',
+        '-Dstderr.encoding=UTF-8'
+    ]
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+    reports {
+        html.required = true
+        junitXml.required = true
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': 'by.student.deposit.Main'
+        )
+    }
+}
